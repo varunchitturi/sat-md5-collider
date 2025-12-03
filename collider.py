@@ -3,8 +3,9 @@ from md5 import MD5
 
 class MD5Collider:
     
-    def __init__(self, input_bytes=None, target_digest=None):
-        assert input_bytes is None or len(input_bytes) == 64
+    def __init__(self, input_bytes, exclude_input_bits=[], target_digest=None):
+        assert input_bytes is None or len(input_bytes) % 64 == 0
+        num_chunks = len(input_bytes) // 64 if input_bytes is not None else 1
         self.solver = Solver(name='g4')
         self.var_idx = 1
         self.a = []
@@ -13,11 +14,15 @@ class MD5Collider:
         self.d = []
         self.x = []
         self.target_digest = target_digest
-        self._init_vars()
+        self._init_vars(num_chunks)
         if input_bytes is not None:
-            for i in range(64):
+            for i in range(len(input_bytes)):
+                exclude_bits = []
+                for exclude_bit in exclude_input_bits:
+                    if exclude_bit // 8 == i:
+                        exclude_bits.append(exclude_bit % 8)
                 byte = self._get_byte_vars(self.x, i)
-                self._add_constant(byte, input_bytes[i])
+                self._add_constant(byte, input_bytes[i], exclude_bits=exclude_bits)
         self._add_constant(self.a, 0x67452301)
         self._add_constant(self.b, 0xefcdab89)
         self._add_constant(self.c, 0x98badcfe)
@@ -35,8 +40,8 @@ class MD5Collider:
         self.var_idx += 1
         return bit_var
 
-    def _init_vars(self):
-        self.x = self._init_number(512)
+    def _init_vars(self, num_chunks):
+        self.x = self._init_number(512 * num_chunks)
         self.a = self._init_number(32)
         self.b = self._init_number(32)
         self.c = self._init_number(32)
@@ -62,14 +67,17 @@ class MD5Collider:
             self.solver.add_clause([-a[i], b[i]])
             self.solver.add_clause([a[i], -b[i]])
 
-    def _add_constant(self, bit_array, constant):
+    def _add_constant(self, bit_array, constant, exclude_bits=[]):
         assert 2 ** len(bit_array) > constant
         for i in range(len(bit_array)):
+            multiplier = 1
+            if i in exclude_bits:
+                multiplier = -1
             c_bit = (constant >> (len(bit_array) - i - 1)) & 1
             if c_bit == 1:
-                self.solver.add_clause([bit_array[i]])
+                self.solver.add_clause([multiplier * bit_array[i]])
             else:
-                self.solver.add_clause([-bit_array[i]])
+                self.solver.add_clause([multiplier * -bit_array[i]])
         return bit_array
 
     def _add_or(self, a, b, c=None):
@@ -181,14 +189,16 @@ class MD5Collider:
         b_new = self.add_combine_words(a, b, c, d, x, i)
         return a_new, b_new, c_new, d_new
     
-    def solve_md5_chunk(self):
+    def solve_md5_chunk(self, chunk_idx, num_rounds=4):
+        
+        assert num_rounds in [1, 2, 3, 4]
                 
         a = self.a
         b = self.b
         c = self.c
         d = self.d
 
-        for i in range(4):
+        for i in range(num_rounds):
             for j in range(16):
                 iter = i*16 + j
                 idx = iter % 16
@@ -198,16 +208,19 @@ class MD5Collider:
                     idx = (3*iter + 5) % 16
                 elif i == 3:
                     idx = (7*iter) % 16
-                input_word = self._convert_endianness(self._get_word_vars(self.x, idx))
+                input_word = self._convert_endianness(self._get_word_vars(self.x, chunk_idx*16 + idx))
                 a, b, c, d = self.add_md5_iteration(a, b, c, d, input_word, iter)
-            if i == 1:
-                break
 
         self.a = self._add_sum(self.a, a)
         self.b = self._add_sum(self.b, b)
         self.c = self._add_sum(self.c, c)
         self.d = self._add_sum(self.d, d)
         
+    
+    def solve_md5(self, num_rounds=4):
+        for i in range(len(self.x) // 512):
+            self.solve_md5_chunk(i, num_rounds)
+            
         if self.target_digest is not None:
             self._add_constant(self._convert_endianness(self.a),
                                self.target_digest >> 96)
@@ -218,9 +231,9 @@ class MD5Collider:
             self._add_constant(self._convert_endianness(self.d),
                                self.target_digest & 0xffffffff)
         
-        sat = self.solver.solve()
+        sat = self.solver.solve_limited(expect_interrupt=True)
         if not sat:
-            return None
+            return False, None
         return sat, self.process_solution(self.solver.get_model())
     
     def solution_to_bytes(self, model, vars, convert_endianness=False):

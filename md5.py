@@ -81,14 +81,15 @@ class MD5:
         return input_bytes + padding[:padLen] + (num_bits & 0xffffffff).to_bytes(4, 'little') + (num_bits >> 32 & 0xffffffff).to_bytes(4, 'little')
     
     
-    def md5_chunk(self, input_bytes):
+    def md5_chunk(self, input_bytes, num_rounds=4):
+        assert num_rounds in [1, 2, 3, 4]
         assert len(input_bytes) == 64
         a = self.a
         b = self.b
         c = self.c
         d = self.d
         
-        for i in range(4):
+        for i in range(num_rounds):
             for j in range(16):
                 iter = i*16 + j
                 idx = iter % 16
@@ -99,19 +100,17 @@ class MD5:
                 elif i == 3:
                     idx = (7*iter) % 16
                 a, b, c, d = MD5.md5_iteration(a, b, c, d, input_bytes[idx*4:idx*4+4], iter)
-            if i == 1:
-                break
 
         self.a = (self.a + a) & 0xffffffff
         self.b = (self.b + b) & 0xffffffff
         self.c = (self.c + c) & 0xffffffff
         self.d = (self.d + d) & 0xffffffff
 
-    def md5_digest(self, input_bytes):
+    def md5_digest(self, input_bytes, num_rounds=4):
         if len(input_bytes) % 64 != 0:
             input_bytes = self.md5_padded(input_bytes)
         for i in range(0, len(input_bytes), 64):
-            self.md5_chunk(input_bytes[i:i+64])
+            self.md5_chunk(input_bytes[i:i+64], num_rounds)
         bytes_list = self.a.to_bytes(4, 'little') + \
                     self.b.to_bytes(4, 'little') + \
                     self.c.to_bytes(4, 'little') + \

@@ -2,11 +2,12 @@ import unittest
 from collider import MD5Collider
 from md5 import MD5
 import pysat
+from threading import Timer
 
 
 class TestMD5ColliderAddConstraints(unittest.TestCase):
     def setUp(self):
-        self.collider = MD5Collider()
+        self.collider = MD5Collider(MD5.md5_padded(b"Hello, World!"))
 
     def test_add_constant_sets_bits_correctly_msb_first(self):
         bits = [self.collider._init_bit() for _ in range(4)]
@@ -99,20 +100,48 @@ class TestMD5ColliderAddConstraints(unittest.TestCase):
         md5 = MD5()
         true_digest = md5.md5_digest(string)
         self.collider = MD5Collider(string)
-        sat, (x, digest) = self.collider.solve_md5_chunk()
+        sat, (x, digest) = self.collider.solve_md5()
         self.assertTrue(sat)
         self.assertEqual(x, string)
         self.assertEqual(digest, true_digest)
-       
-    def test_solve_md5_chunk_reverse(self):
-        string = MD5.md5_padded(b"Hello, World!")
-        md5 = MD5()
-        true_digest = md5.md5_digest(string)
-        self.collider = MD5Collider(target_digest=true_digest)
-        sat, (x, digest) = self.collider.solve_md5_chunk()
-        self.assertTrue(sat)
-        self.assertEqual(digest, true_digest)
-        self.assertEqual(hex(MD5().md5_digest(x)), hex(digest))
-
+        
+    def test_solve_md5_collision(self):
+        
+        #m0 = 0x02dd31d1c4eee6c5069a3d695cf9af9887b5ca2fab7e46123e580440897ffbb80634ad5502b3f4098388e4835a417125e82551089fc9cdf7f2bd1dd95b3c3780
+        #m1 = 0xd11d0b969c7b41dcf497d8e4d555655ac79a73350cfdebf066f129308fb109d1797f2775eb5cd530baade8225c15cc79ddcb74ed6dd3c55fd80a9bb1e3a7cc35
+        
+        # m0_prime = 0x02dd31d1c4eee6c5069a3d695cf9af9807b5ca2fab7e46123e580440897ffbb80634ad5502b3f4098388e4835a41f125e82551089fc9cdf772bd1dd95b3c3780
+        # m1_prime = 0xd11d0b969c7b41dcf497d8e4d555655a479a73350cfdebf066f129308fb109d1797f2775eb5cd530baade8225c154c79ddcb74ed6dd3c55f580a9bb1e3a7cc35
+        
+        #m0 = 0x2dd31d1c4eee6c569a3d695cf9af9887b5ca2fab7e46123e580440897ffbb8634ad552b3f4098388e4835a417125e82551089fc9cdf7f2bd1dd95b3c3780
+        #m1 = 0xd11d0b969c7b41dcf497d8e4d555655ac79a7335cfdebf066f129308fb109d1797f2775eb5cd530baade8225c15cc79ddcb74ed6dd3c55fd80a9bb1e3a7cc35
+        
+        m0 = b"TEXTCOLLBYfGiJUETHQ4hEcKSMd5zYpgqf1YRDhkmxHkhPWptrkoyz28wnI9V0aHeAuaKnak"
+        
+        def interrupt(s):
+            s.interrupt()
+        
+        true_digest = MD5().md5_digest(m0)
+        all_inputs = set()
+        for i in range(512):
+            for j in range(i+1, 513):
+                for k in range(j+1, 513):
+                    exclude_bits = [i]
+                    if j != 512:
+                        exclude_bits.append(j)
+                    if k != 512:
+                        exclude_bits.append(k)
+                    print(f"Trying to solve for bit {i, j, k}")
+                    self.collider = MD5Collider(MD5.md5_padded(m0), target_digest=true_digest, exclude_input_bits=exclude_bits)
+                    timer = Timer(1, interrupt, [self.collider.solver])
+                    timer.start()
+                    sat, result = self.collider.solve_md5()
+                    if sat:
+                        print("Found solution!")
+                        x, digest = result
+                        all_inputs.add(str(x))
+                
+        print(all_inputs)
+        
 if __name__ == "__main__":
     unittest.main(verbosity=1)
