@@ -82,8 +82,3 @@ At a high level, we model the entire MD5 compression pipeline as a Boolean circu
   - The returned model is decoded back into bytes for `x` and into a 128‑bit integer digest `(a‖b‖c‖d)`.
 
 This approach yields a single, large SAT instance representing the entire MD5 pipeline. By freeing selected input bits and/or pinning the output digest, you can perform tasks like inversion or constrained collision search within the SAT framework.
-
-## License
-For course use and educational purposes.
-
-
