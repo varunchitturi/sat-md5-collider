@@ -44,7 +44,7 @@ class TestMD5ColliderAddConstraints(unittest.TestCase):
             for b_val in (False, True):
                 for c_val in (False, True):
                     assumps = [(4 if a_val else -4), (5 if b_val else -5), (6 if c_val else -6)]
-                    sat, _ = self.collider.solver.solve(assumptions=assumps)
+                    sat = self.collider.solver.solve(assumptions=assumps)
                     self.assertEqual(sat, (a_val and b_val) == c_val)
 
     def test_add_xor_truth_table_explicit_output(self):
@@ -56,7 +56,7 @@ class TestMD5ColliderAddConstraints(unittest.TestCase):
             for b_val in (False, True):
                 for c_val in (False, True):
                     assumps = [(7 if a_val else -7), (8 if b_val else -8), (9 if c_val else -9)]
-                    sat, _ = self.collider.solver.solve(assumptions=assumps)
+                    sat = self.collider.solver.solve(assumptions=assumps)
                     self.assertEqual(sat, (a_val ^ b_val) == c_val)
 
     def test_add_not_truth_table_explicit_output(self):
@@ -66,7 +66,7 @@ class TestMD5ColliderAddConstraints(unittest.TestCase):
         for a_val in (False, True):
             for b_val in (False, True):
                 assumps = [(11 if a_val else -11), (12 if b_val else -12)]
-                sat, _ = self.collider.solver.solve(assumptions=assumps)
+                sat = self.collider.solver.solve(assumptions=assumps)
                 self.assertEqual(sat, b_val == (not a_val))
 
     def test_add_sum_explicit_output(self):
@@ -123,25 +123,19 @@ class TestMD5ColliderAddConstraints(unittest.TestCase):
         
         true_digest = MD5().md5_digest(m0)
         all_inputs = set()
+        found_solution = False
         for i in range(512):
-            for j in range(i+1, 513):
-                for k in range(j+1, 513):
                     exclude_bits = [i]
-                    if j != 512:
-                        exclude_bits.append(j)
-                    if k != 512:
-                        exclude_bits.append(k)
-                    print(f"Trying to solve for bit {i, j, k}")
                     self.collider = MD5Collider(MD5.md5_padded(m0), target_digest=true_digest, exclude_input_bits=exclude_bits)
                     timer = Timer(1, interrupt, [self.collider.solver])
                     timer.start()
                     sat, result = self.collider.solve_md5()
                     if sat:
-                        print("Found solution!")
                         x, digest = result
                         all_inputs.add(str(x))
-                
-        print(all_inputs)
+                        found_solution = True
+                        break
+        assert found_solution, "No solution found"
         
 if __name__ == "__main__":
     unittest.main(verbosity=1)
