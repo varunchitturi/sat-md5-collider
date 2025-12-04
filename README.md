@@ -16,7 +16,7 @@ Core files:
 
 Requirements:
 - Python 3.8+ (recommended)
-- `python-sat` (PySAT, provides Glucose4 solver bindings)
+- `python-sat` (PySAT)
 - Optional: Jupyter for running the demo notebook
 
 ## Quick Start
@@ -38,7 +38,7 @@ python -m unittest -v tests/collider_tests.py
 ```
 
 
-## How the SAT solver works (Tseitin encoding)
+## How the SAT solver works
 
 At a high level, we model the entire MD5 compression pipeline as a Boolean circuit, then encode that circuit into CNF using Tseitin transformation. The SAT solver then finds an assignment to all circuit variables that satisfies the CNF. From the satisfying assignment (model), we read back the input bytes `x` and the output digest `(a‖b‖c‖d)`.
 
@@ -82,5 +82,8 @@ At a high level, we model the entire MD5 compression pipeline as a Boolean circu
 - **Solving and decoding**
   - The CNF is handed to a Glucose4 solver via PySAT. For long runs, the limited/interrupt API is used to cap time.
   - The returned model is decoded back into bytes for `x` and into a 128‑bit integer digest `(a‖b‖c‖d)`.
+
+- **How MD5 Works**
+  - For more information about how the full MD5 pipeline works, watch this video: [MD5 Pipeline Video](https://www.youtube.com/watch?v=5MiMK45gkTY)
 
 This approach yields a single, large SAT instance representing the entire MD5 pipeline. By freeing selected input bits and/or pinning the output digest, you can perform tasks like inversion or constrained collision search within the SAT framework.
