@@ -315,7 +315,7 @@ class MD5Collider:
     def print_word(self, word, model):
         """Debug helper: print a 32-bit word from the model as 0/1s."""
         for i in range(32):
-            if model[word[i]]:
+            if model[word[i]-1] > 0:
                 print("1", end="")
             else:
                 print("0", end="")

@@ -30,6 +30,8 @@ jupyter notebook demo.ipynb
 
 Run the tests:
 
+Takes about (~30s)
+
 ```bash
 # From the Project directory
 python -m unittest -v tests/collider_tests.py
